@@ -2,6 +2,7 @@ import PageTransition from "@/components/PageTransition";
 import NeuralCanvas from "@/components/NeuralCanvas";
 import ZigzagTimeline from "@/components/ZigzagTimeline";
 import NewsSection from "@/components/NewsSection";
+import NarrativeQuote from "@/components/NarrativeQuote";
 
 export default function HomePage() {
   return (
@@ -75,22 +76,7 @@ export default function HomePage() {
           >
             // 叙事主线
           </span>
-          <p
-            className="text-sm leading-loose"
-            style={{ color: "rgba(255,255,255,0.48)", fontFamily: "var(--font-noto-sc)" }}
-          >
-            AI 先学会了阅读{" "}
-            <Hi c="#3b82f6">（Transformer）</Hi>，通过海量阅读变聪明了{" "}
-            <Hi c="#06b6d4">（LLM）</Hi>，学会了说人话{" "}
-            <Hi c="#8b5cf6">（ChatGPT）</Hi>，人类也学会了怎么跟它沟通{" "}
-            <Hi c="#3b82f6">（Prompt Engineering）</Hi>，然后它学会了查资料{" "}
-            <Hi c="#06b6d4">（RAG）</Hi>、学会了自己干活{" "}
-            <Hi c="#8b5cf6">（Agent）</Hi>、有了统一的工具接口{" "}
-            <Hi c="#3b82f6">（MCP）</Hi>和技能包{" "}
-            <Hi c="#06b6d4">（Skills）</Hi>，最后人类可以对着它说话让它写代码{" "}
-            <Hi c="#8b5cf6">（Vibe Coding）</Hi>，一群 AI 组队完成复杂任务{" "}
-            <Hi c="#3b82f6">（Agentic Workflows）</Hi>。
-          </p>
+          <NarrativeQuote />
         </div>
       </section>
 
@@ -137,11 +123,6 @@ export default function HomePage() {
       <NewsSection />
     </PageTransition>
   );
-}
-
-/* ── Inline highlight ── */
-function Hi({ children, c }: { children: React.ReactNode; c: string }) {
-  return <span style={{ color: c, fontWeight: 500 }}>{children}</span>;
 }
 
 /* ── Scroll hint ── */

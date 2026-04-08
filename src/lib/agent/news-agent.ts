@@ -73,7 +73,7 @@ function appendHistory(run: AgentRun) {
 
 // ─── API call — DashScope OpenAI-compatible endpoint ────────────────────────────
 const LLM_BASE = process.env.DASHSCOPE_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const LLM_MODEL = "qwen-plus";
+const LLM_MODEL = process.env.DASHSCOPE_MODEL ?? "qwen-plus";
 
 async function chat(messages: { role: string; content: string }[]): Promise<{
   content: string;
@@ -219,10 +219,12 @@ export async function runNewsAgent(
     const systemPrompt = buildSystemPrompt(config);
     const userPrompt = buildUserPrompt(config, allScraped);
 
-    const result = await chat([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ]);
+    const result = await chat(
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ]
+    );
 
     tracker.add({ inputTokens: result.inputTokens, outputTokens: result.outputTokens });
     console.log("[news-agent] Raw output:\n", result.content.slice(0, 2000));

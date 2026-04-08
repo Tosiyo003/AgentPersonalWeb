@@ -1,73 +1,115 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import PageTransition from "@/components/PageTransition";
 import ScrollReveal from "@/components/ScrollReveal";
 import ChatWidget from "@/components/ChatWidget";
-import { resumeData } from "@/data/resume";
 
-const journey = [
-  {
-    period: "2023 年初",
-    event: "初遇 ChatGPT",
-    desc: "第一次感受到 LLM 的力量，开始系统学习 AI 基础知识。",
-  },
-  {
-    period: "2023 年中",
-    event: "动手做第一个项目",
-    desc: "用 LangChain 搭建 PDF 问答机器人，踩坑无数，深入理解 RAG。",
-  },
-  {
-    period: "2024 年初",
-    event: "Vibe Coding 觉醒",
-    desc: "开始用 AI 辅助编程，效率翻倍。意识到 AI 工具本身就是学习对象。",
-  },
-  {
-    period: "2024 年末",
-    event: "深入 Agent 方向",
-    desc: "研究 Tool Use、Function Calling，探索 AI Agent 的边界。",
-  },
-  {
-    period: "2025 年",
-    event: "创建本站",
-    desc: "用 Vibe Coding 方式搭建这个网站，记录学习历程，分享知识。",
-  },
-];
+interface Settings {
+  name: string;
+  title: string;
+  email: string;
+  github: string;
+  bio: string;
+  resumeUrl: string | null;
+}
 
-export default function AboutPage() {
+interface Education {
+  id: string;
+  school: string;
+  degree: string;
+  period: string;
+  highlights: string[];
+}
+
+interface Experience {
+  id: string;
+  company: string;
+  role: string;
+  period: string;
+  highlights: string[];
+}
+
+interface JourneyItem {
+  id: string;
+  period: string;
+  event: string;
+  desc: string;
+}
+
+interface AboutData {
+  education: Education[];
+  experience: Experience[];
+  journey: JourneyItem[];
+}
+
+function AboutContent() {
+  const [settings, setSettings] = useState<Settings>({ name: "", title: "", email: "", github: "", bio: "", resumeUrl: null });
+  const [about, setAbout] = useState<AboutData>({ education: [], experience: [], journey: [] });
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/settings").then((r) => r.json()),
+      fetch("/api/about").then((r) => r.json()),
+    ]).then(([s, a]) => {
+      setSettings({
+        name: s.name || "",
+        title: s.title || "",
+        email: s.email || "",
+        github: s.github || "",
+        bio: s.bio || "",
+        resumeUrl: s.resumeUrl || null,
+      });
+      setAbout(a);
+    }).catch(() => {});
+  }, []);
+
+  const displayName = settings.name || "KK";
+
   return (
-    <PageTransition>
-      <div className="max-w-4xl mx-auto px-6 py-16">
-        {/* Hero / Profile */}
-        <ScrollReveal>
-          <div className="glass p-8 sm:p-10 mb-12 flex flex-col sm:flex-row items-center sm:items-start gap-8">
-            <div
-              className="shrink-0 w-24 h-24 rounded-2xl flex items-center justify-center text-3xl font-bold"
-              style={{
-                background: "linear-gradient(135deg, rgba(59,130,246,0.2) 0%, rgba(139,92,246,0.2) 100%)",
-                border: "1px solid rgba(59,130,246,0.25)",
-                color: "#93c5fd",
-                fontFamily: "var(--font-space-grotesk)",
-              }}
-            >
-              {resumeData.name}
+    <>
+      {/* Hero / Profile */}
+      <ScrollReveal>
+        <div className="glass p-8 sm:p-10 mb-12 flex flex-col sm:flex-row items-center sm:items-start gap-8">
+          <div
+            className="shrink-0 w-24 h-24 rounded-2xl flex items-center justify-center text-3xl font-bold"
+            style={{
+              background: "linear-gradient(135deg, rgba(59,130,246,0.2) 0%, rgba(139,92,246,0.2) 100%)",
+              border: "1px solid rgba(59,130,246,0.25)",
+              color: "#93c5fd",
+              fontFamily: "var(--font-space-grotesk)",
+            }}
+          >
+            {displayName}
+          </div>
+
+          <div className="flex-1 text-center sm:text-left">
+            <div className="inline-flex items-center gap-2 tech-tag mb-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+              Available · Open to Connect
             </div>
-
-            <div className="flex-1 text-center sm:text-left">
-              <div className="inline-flex items-center gap-2 tech-tag mb-3">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
-                Available · Open to Connect
-              </div>
-              <h1
-                className="text-3xl sm:text-4xl font-bold mb-3 gradient-text section-title"
-                style={{ lineHeight: 1.2 }}
-              >
-                你好，我是 {resumeData.name}
-              </h1>
+            <h1
+              className="text-3xl sm:text-4xl font-bold mb-3 gradient-text section-title"
+              style={{ lineHeight: 1.2 }}
+            >
+              你好，我是 {displayName}
+            </h1>
+            {settings.bio ? (
               <p className="text-base leading-relaxed mb-5" style={{ color: "rgba(255,255,255,0.55)" }}>
-                {resumeData.title}
+                {settings.bio}
               </p>
+            ) : (
+              settings.title && (
+                <p className="text-base leading-relaxed mb-5" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  {settings.title}
+                </p>
+              )
+            )}
 
-              <div className="flex flex-wrap justify-center sm:justify-start gap-3">
+            <div className="flex flex-wrap justify-center sm:justify-start gap-3">
+              {settings.github && (
                 <a
-                  href={resumeData.github}
+                  href={settings.github}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 hover:scale-105"
@@ -82,8 +124,10 @@ export default function AboutPage() {
                   </svg>
                   GitHub
                 </a>
+              )}
+              {settings.email && (
                 <a
-                  href={`mailto:${resumeData.email}`}
+                  href={`mailto:${settings.email}`}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 hover:scale-105"
                   style={{
                     background: "rgba(59,130,246,0.1)",
@@ -97,54 +141,56 @@ export default function AboutPage() {
                   </svg>
                   联系我
                 </a>
-              </div>
+              )}
             </div>
           </div>
-        </ScrollReveal>
+        </div>
+      </ScrollReveal>
 
-        {/* Education (left) + Experience (right) */}
-        <div className="grid md:grid-cols-2 gap-6 mb-12">
-          {/* Education */}
-          <ScrollReveal>
-            <div className="glass p-6 h-full flex flex-col">
-              <h2
-                className="text-lg font-semibold mb-6"
-                style={{ fontFamily: "var(--font-space-grotesk)", color: "rgba(255,255,255,0.85)" }}
-              >
-                教育背景
-              </h2>
-              <div className="space-y-5 flex-1">
-                {resumeData.education.map((edu) => (
-                  <div key={edu.school}>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h3
-                        className="text-sm font-semibold"
-                        style={{ color: "rgba(255,255,255,0.85)", fontFamily: "var(--font-noto-sc)" }}
-                      >
-                        {edu.school}
-                      </h3>
-                      <span
-                        className="text-xs shrink-0"
-                        style={{ color: "#93c5fd", fontFamily: "var(--font-jetbrains)" }}
-                      >
-                        {edu.period}
-                      </span>
-                    </div>
-                    <p className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "var(--font-noto-sc)" }}>
-                      {edu.degree}
-                    </p>
-                    {edu.highlights.map((h) => (
-                      <div key={h} className="flex items-start gap-2 mb-1">
-                        <span className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: "#06b6d4" }} />
-                        <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{h}</span>
-                      </div>
-                    ))}
+      {/* Education (left) + Experience (right) */}
+      <div className="grid md:grid-cols-2 gap-6 mb-12">
+        {/* Education */}
+        <ScrollReveal>
+          <div className="glass p-6 h-full flex flex-col">
+            <h2
+              className="text-lg font-semibold mb-6"
+              style={{ fontFamily: "var(--font-space-grotesk)", color: "rgba(255,255,255,0.85)" }}
+            >
+              教育背景
+            </h2>
+            <div className="space-y-5 flex-1">
+              {about.education.map((edu) => (
+                <div key={edu.id}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3
+                      className="text-sm font-semibold"
+                      style={{ color: "rgba(255,255,255,0.85)", fontFamily: "var(--font-noto-sc)" }}
+                    >
+                      {edu.school}
+                    </h3>
+                    <span
+                      className="text-xs shrink-0"
+                      style={{ color: "#93c5fd", fontFamily: "var(--font-jetbrains)" }}
+                    >
+                      {edu.period}
+                    </span>
                   </div>
-                ))}
+                  <p className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "var(--font-noto-sc)" }}>
+                    {edu.degree}
+                  </p>
+                  {(Array.isArray(edu.highlights) ? edu.highlights : []).map((h) => (
+                    <div key={h} className="flex items-start gap-2 mb-1">
+                      <span className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: "#06b6d4" }} />
+                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{h}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
 
-                {/* PDF Download */}
+              {/* PDF Download */}
+              {settings.resumeUrl && (
                 <a
-                  href="/assets/resume-v2.pdf"
+                  href={settings.resumeUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-102"
@@ -163,109 +209,118 @@ export default function AboutPage() {
                   </svg>
                   下载 PDF 全文
                 </a>
-              </div>
+              )}
             </div>
-          </ScrollReveal>
+          </div>
+        </ScrollReveal>
 
-          {/* Experience */}
-          <ScrollReveal delay={0.1}>
-            <div className="glass p-6 h-full flex flex-col">
-              <h2
-                className="text-lg font-semibold mb-6"
-                style={{ fontFamily: "var(--font-space-grotesk)", color: "rgba(255,255,255,0.85)" }}
-              >
-                工作经历
-              </h2>
-              <div className="space-y-5 flex-1">
-                {resumeData.experience.map((job, idx) => (
-                  <div key={job.company}>
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <h3
-                        className="text-sm font-semibold"
-                        style={{ color: "rgba(255,255,255,0.85)", fontFamily: "var(--font-noto-sc)" }}
-                      >
-                        {job.company}
-                      </h3>
-                      <span
-                        className="text-xs shrink-0"
-                        style={{ color: idx === 0 ? "#34d399" : "rgba(255,255,255,0.3)", fontFamily: "var(--font-jetbrains)" }}
-                      >
-                        {job.period}
-                      </span>
-                    </div>
-                    <p className="text-xs mb-2" style={{ color: "#93c5fd", fontFamily: "var(--font-noto-sc)" }}>
-                      {job.role}
-                    </p>
-                    {job.highlights.map((h) => (
-                      <div key={h} className="flex items-start gap-2 mb-1">
-                        <span className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: "rgba(59,130,246,0.6)" }} />
-                        <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{h}</span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </ScrollReveal>
-        </div>
-
-        {/* Learning Journey */}
-        <ScrollReveal>
-          <div className="glass p-6 sm:p-8">
+        {/* Experience */}
+        <ScrollReveal delay={0.1}>
+          <div className="glass p-6 h-full flex flex-col">
             <h2
-              className="text-lg font-semibold mb-8"
+              className="text-lg font-semibold mb-6"
               style={{ fontFamily: "var(--font-space-grotesk)", color: "rgba(255,255,255,0.85)" }}
             >
-              学习历程
+              工作经历
             </h2>
-            <div className="relative">
-              <div
-                className="absolute left-2 top-0 bottom-0 w-px"
-                style={{ background: "linear-gradient(180deg, rgba(59,130,246,0.4), transparent)" }}
-              />
-              <div className="space-y-6">
-                {journey.map((item, i) => (
-                  <ScrollReveal key={item.period} delay={i * 0.07}>
-                    <div className="pl-8 relative">
-                      <div
-                        className="absolute left-0 top-1.5 w-4 h-4 rounded-full border-2"
-                        style={{
-                          borderColor: i === journey.length - 1 ? "#3b82f6" : "rgba(59,130,246,0.4)",
-                          background: i === journey.length - 1 ? "rgba(59,130,246,0.3)" : "rgba(59,130,246,0.1)",
-                          boxShadow: i === journey.length - 1 ? "0 0 12px rgba(59,130,246,0.5)" : "none",
-                        }}
-                      />
-                      <div className="flex items-start gap-3 flex-wrap">
-                        <span
-                          className="text-xs px-2 py-1 rounded shrink-0"
-                          style={{
-                            background: "rgba(59,130,246,0.1)",
-                            color: "#93c5fd",
-                            border: "1px solid rgba(59,130,246,0.2)",
-                            fontFamily: "var(--font-jetbrains)",
-                          }}
-                        >
-                          {item.period}
-                        </span>
-                        <h3
-                          className="text-sm font-semibold"
-                          style={{ color: "rgba(255,255,255,0.85)", fontFamily: "var(--font-space-grotesk)" }}
-                        >
-                          {item.event}
-                        </h3>
-                      </div>
-                      <p className="text-xs leading-relaxed mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
-                        {item.desc}
-                      </p>
+            <div className="space-y-5 flex-1">
+              {about.experience.map((job, idx) => (
+                <div key={job.id}>
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <h3
+                      className="text-sm font-semibold"
+                      style={{ color: "rgba(255,255,255,0.85)", fontFamily: "var(--font-noto-sc)" }}
+                    >
+                      {job.company}
+                    </h3>
+                    <span
+                      className="text-xs shrink-0"
+                      style={{ color: idx === 0 ? "#34d399" : "rgba(255,255,255,0.3)", fontFamily: "var(--font-jetbrains)" }}
+                    >
+                      {job.period}
+                    </span>
+                  </div>
+                  <p className="text-xs mb-2" style={{ color: "#93c5fd", fontFamily: "var(--font-noto-sc)" }}>
+                    {job.role}
+                  </p>
+                  {(Array.isArray(job.highlights) ? job.highlights : []).map((h) => (
+                    <div key={h} className="flex items-start gap-2 mb-1">
+                      <span className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: "rgba(59,130,246,0.6)" }} />
+                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{h}</span>
                     </div>
-                  </ScrollReveal>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
         </ScrollReveal>
       </div>
 
+      {/* Learning Journey */}
+      <ScrollReveal>
+        <div className="glass p-6 sm:p-8">
+          <h2
+            className="text-lg font-semibold mb-8"
+            style={{ fontFamily: "var(--font-space-grotesk)", color: "rgba(255,255,255,0.85)" }}
+          >
+            学习历程
+          </h2>
+          <div className="relative">
+            <div
+              className="absolute left-2 top-0 bottom-0 w-px"
+              style={{ background: "linear-gradient(180deg, rgba(59,130,246,0.4), transparent)" }}
+            />
+            <div className="space-y-6">
+              {about.journey.map((item, i) => (
+                <ScrollReveal key={item.id} delay={i * 0.07}>
+                  <div className="pl-8 relative">
+                    <div
+                      className="absolute left-0 top-1.5 w-4 h-4 rounded-full border-2"
+                      style={{
+                        borderColor: i === about.journey.length - 1 ? "#3b82f6" : "rgba(59,130,246,0.4)",
+                        background: i === about.journey.length - 1 ? "rgba(59,130,246,0.3)" : "rgba(59,130,246,0.1)",
+                        boxShadow: i === about.journey.length - 1 ? "0 0 12px rgba(59,130,246,0.5)" : "none",
+                      }}
+                    />
+                    <div className="flex items-start gap-3 flex-wrap">
+                      <span
+                        className="text-xs px-2 py-1 rounded shrink-0"
+                        style={{
+                          background: "rgba(59,130,246,0.1)",
+                          color: "#93c5fd",
+                          border: "1px solid rgba(59,130,246,0.2)",
+                          fontFamily: "var(--font-jetbrains)",
+                        }}
+                      >
+                        {item.period}
+                      </span>
+                      <h3
+                        className="text-sm font-semibold"
+                        style={{ color: "rgba(255,255,255,0.85)", fontFamily: "var(--font-space-grotesk)" }}
+                      >
+                        {item.event}
+                      </h3>
+                    </div>
+                    <p className="text-xs leading-relaxed mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+                      {item.desc}
+                    </p>
+                  </div>
+                </ScrollReveal>
+              ))}
+            </div>
+          </div>
+        </div>
+      </ScrollReveal>
+    </>
+  );
+}
+
+export default function AboutPage() {
+  return (
+    <PageTransition>
+      <div className="max-w-4xl mx-auto px-6 py-16">
+        <AboutContent />
+      </div>
       <ChatWidget />
     </PageTransition>
   );

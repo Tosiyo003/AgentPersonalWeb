@@ -173,6 +173,80 @@ function DetailModal({
   );
 }
 
+// ─── Narrative editor ───────────────────────────────────────────────────────
+function NarrativeEditor() {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/narrative")
+      .then((r) => r.json())
+      .then((data) => setText(data.text ?? ""))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/narrative", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="glass p-5 flex flex-col gap-3 mb-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.75)", fontFamily: "var(--font-space-grotesk)" }}>
+            叙事主线
+          </h3>
+          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "var(--font-jetbrains)" }}>
+            首页时间线上方的引导文案，支持 Hi 标签（如 {"(Transformer)"}）
+          </p>
+        </div>
+        {saving ? (
+          <div className="w-5 h-5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+        ) : (
+          <button
+            onClick={save}
+            disabled={loading}
+            className="px-4 py-1.5 rounded-xl text-xs font-medium transition-all hover:scale-105 active:scale-95 disabled:opacity-40"
+            style={{ background: "rgba(59,130,246,0.18)", border: "1px solid rgba(59,130,246,0.35)", color: "#93c5fd", fontFamily: "var(--font-noto-sc)" }}
+          >
+            {saved ? "✓ 已保存" : "保存"}
+          </button>
+        )}
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        className="w-full px-3 py-2.5 rounded-xl text-sm outline-none resize-none"
+        style={{
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          color: "rgba(255,255,255,0.8)",
+          fontFamily: "var(--font-noto-sc)",
+          lineHeight: 1.7,
+        }}
+        placeholder="输入叙事主线内容，支持 Hi 标签格式，如：AI 先学会了阅读（Transformer）..."
+      />
+    </div>
+  );
+}
+
 // ─── Timeline list ───────────────────────────────────────────────────────────
 function TimelineList() {
   const [nodes, setNodes] = useState<TimelineNode[]>([]);
@@ -272,6 +346,9 @@ function TimelineList() {
           ✓ 已保存
         </motion.div>
       )}
+
+      {/* Narrative editor */}
+      <NarrativeEditor />
 
       {/* Hint */}
       <div className="mb-4 px-4 py-2.5 rounded-lg text-xs" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)", color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-noto-sc)" }}>

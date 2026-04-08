@@ -25,7 +25,7 @@ export default function ChatWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch("/api/admin/settings")
+    fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => setEnabled(data.enableChatWidget !== false))
       .catch(() => {});
