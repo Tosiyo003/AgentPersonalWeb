@@ -2,7 +2,9 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { TokenTracker } from "./token-tracker";
-import { buildSystemPrompt, buildSearchQueries } from "./prompts";
+import { buildSystemPrompt, buildUserPrompt } from "./prompts";
+import { searchAllChina } from "./scrapers/china-search";
+import type { SearchResult } from "./scrapers/types";
 import type {
   AgentNewsItem,
   AgentRun,
@@ -183,13 +185,39 @@ export async function runNewsAgent(
   const startedAt = new Date().toISOString();
 
   try {
-    onStatus({ type: "status", message: "正在生成新闻列表..." });
+    // Step 1: Parallel web scraping across all platforms
+    onStatus({ type: "status", message: "正在并行爬取搜狗、B站、微博..." });
+
+    const keywords = config.keywords;
+    const scrapeResults = await Promise.allSettled(
+      keywords.map((kw) => searchAllChina(kw))
+    );
+
+    const allScraped: SearchResult[] = [];
+    const kwResults: string[] = [];
+    scrapeResults.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        allScraped.push(...result.value);
+        kwResults.push(`${keywords[i]}: ${result.value.length}条`);
+      } else {
+        kwResults.push(`${keywords[i]}: 失败`);
+      }
+    });
+
+    console.log(`[news-agent] Scraped ${allScraped.length} total results`);
+    console.log(`[news-agent] Per keyword: ${kwResults.join(", ")}`);
+
+    if (allScraped.length === 0) {
+      throw new Error("所有平台爬取均失败，请检查网络或稍后重试");
+    }
+
+    onStatus({ type: "status", message: `爬取完成，获得 ${allScraped.length} 条原始素材` });
+
+    // Step 2: Feed scraped results to LLM for summarization
+    onStatus({ type: "status", message: "正在让 AI 分析并筛选新闻..." });
 
     const systemPrompt = buildSystemPrompt(config);
-    const userPrompt = `请提供 ${config.newsCount} 条最近一个月内（2026年3月至今）最重要的 AI / 大模型领域新闻。只推荐真正新近发生的新闻，不要推荐老旧内容。
-
-每条输出一行 JSON 对象，字段：title、summary（中文2-3句）、source、url、tags。
-直接输出 JSON，不要有任何其他文字：`;
+    const userPrompt = buildUserPrompt(config, allScraped);
 
     const result = await chat([
       { role: "system", content: systemPrompt },
@@ -198,7 +226,10 @@ export async function runNewsAgent(
 
     tracker.add({ inputTokens: result.inputTokens, outputTokens: result.outputTokens });
     console.log("[news-agent] Raw output:\n", result.content.slice(0, 2000));
-    onStatus({ type: "status", message: `获取完成，正在解析... (${result.inputTokens + result.outputTokens} tokens)` });
+    onStatus({
+      type: "status",
+      message: `分析完成，正在解析... (${result.inputTokens + result.outputTokens} tokens)`,
+    });
 
     const items = parseNews(result.content, config.newsCount);
 
@@ -213,7 +244,7 @@ export async function runNewsAgent(
       id: `news-${i + 1}`,
     }));
 
-    onStatus({ type: "status", message: `解析完成，获得 ${finalItems.length} 条，正在写入缓存...` });
+    onStatus({ type: "status", message: `解析完成，获得 ${finalItems.length} 条新闻，正在写入缓存...` });
 
     writeCache(finalItems, runId);
 

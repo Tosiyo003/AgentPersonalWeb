@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AgentNewsItem } from "@/lib/agent/types";
 
@@ -32,8 +32,12 @@ const TAG_COLORS: Record<string, string> = {
   "AI Agent": "#f59e0b",
   大模型: "#6366f1",
   LLM: "#6366f1",
+  多模态: "#ec4899",
+  具身智能: "#14b8a6",
 };
 const DEFAULT_TAG_COLOR = "#6366f1";
+const ITEMS_PER_PAGE = 6;
+const AUTO_PLAY_INTERVAL = 10000; // 10 seconds
 
 interface CacheData {
   items: AgentNewsItem[];
@@ -65,7 +69,6 @@ export default function NewsSection() {
             <h2 className="text-2xl font-bold gradient-text-blue section-title">
               AI 热点速递
             </h2>
-            {/* Live / Empty badge */}
             <span
               className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs"
               style={
@@ -123,28 +126,123 @@ export default function NewsSection() {
       {/* ── Content ── */}
       <AnimatePresence mode="wait">
         {loading ? (
-          <SkeletonGrid key="skeleton" />
+          <SkeletonCarousel key="skeleton" />
         ) : !hasNews ? (
           <EmptyState key="empty" />
         ) : (
-          <motion.div
-            key="grid"
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            {cache!.items.map((item, i) => (
-              <NewsCard key={item.id} item={item} index={i} />
-            ))}
-          </motion.div>
+          <NewsCarousel key="carousel" items={cache!.items} />
         )}
       </AnimatePresence>
     </section>
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
+// ─── Carousel ─────────────────────────────────────────────────────────────────
+function NewsCarousel({ items }: { items: AgentNewsItem[] }) {
+  const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-play logic
+  useEffect(() => {
+    if (isPaused || totalPages <= 1) return;
+
+    timerRef.current = setInterval(() => {
+      setCurrentPage((p) => (p + 1) % totalPages);
+    }, AUTO_PLAY_INTERVAL);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isPaused, totalPages]);
+
+  const pageItems = items.slice(
+    currentPage * ITEMS_PER_PAGE,
+    (currentPage + 1) * ITEMS_PER_PAGE
+  );
+
+  function goToPage(index: number) {
+    setCurrentPage(index);
+  }
+
+  const slideVariants = {
+    enter: { opacity: 0, x: 60 },
+    center: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -60 },
+  };
+
+  return (
+    <div className="relative">
+      {/* Carousel viewport with hover pause */}
+      <div
+        className="overflow-hidden rounded-2xl"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={currentPage}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {/* 3-col × 2-row grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {pageItems.map((item, i) => (
+                <NewsCard key={item.id} item={item} index={i} />
+              ))}
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* ── Navigation dots ── */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goToPage(i)}
+              className="transition-all duration-300 rounded-full"
+              style={{
+                width: i === currentPage ? "24px" : "8px",
+                height: "8px",
+                background:
+                  i === currentPage
+                    ? "rgba(59,130,246,0.8)"
+                    : "rgba(255,255,255,0.15)",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+              }}
+              aria-label={`第 ${i + 1} 页`}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── Pause indicator ── */}
+      {isPaused && (
+        <div
+          className="absolute top-3 right-3 text-xs px-2 py-1 rounded-md"
+          style={{
+            background: "rgba(0,0,0,0.5)",
+            color: "rgba(255,255,255,0.5)",
+            fontFamily: "var(--font-jetbrains)",
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          已暂停
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Empty state ─────────────────────────────────────────────────────────────
 function EmptyState() {
   return (
     <motion.div
@@ -177,9 +275,9 @@ function EmptyState() {
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
-function SkeletonGrid() {
+function SkeletonCarousel() {
   return (
-    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="glass p-5 space-y-3">
           <div className="h-2.5 rounded-full skeleton-pulse w-1/3" />
@@ -199,16 +297,18 @@ function SkeletonGrid() {
 
 // ─── News card ────────────────────────────────────────────────────────────────
 function NewsCard({ item, index }: { item: AgentNewsItem; index: number }) {
+  const isClickable = item.url && item.url !== "#" && item.url !== "https://example.com/news";
+
   return (
     <motion.a
-      href={item.url === "#" ? undefined : item.url}
-      target={item.url === "#" ? undefined : "_blank"}
-      rel="noopener noreferrer"
+      href={isClickable ? item.url : undefined}
+      target={isClickable ? "_blank" : undefined}
+      rel={isClickable ? "noopener noreferrer" : undefined}
       className="glass flex flex-col p-5 group"
       style={{
         textDecoration: "none",
         minHeight: 172,
-        cursor: item.url === "#" ? "default" : "pointer",
+        cursor: isClickable ? "pointer" : "default",
       }}
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
@@ -259,7 +359,7 @@ function NewsCard({ item, index }: { item: AgentNewsItem; index: number }) {
         style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
       >
         <div className="flex flex-wrap gap-1.5">
-          {item.tags.slice(0, 2).map((tag) => {
+          {(item.tags ?? []).slice(0, 2).map((tag) => {
             const c = TAG_COLORS[tag] ?? DEFAULT_TAG_COLOR;
             return (
               <span
@@ -279,7 +379,7 @@ function NewsCard({ item, index }: { item: AgentNewsItem; index: number }) {
           })}
         </div>
 
-        {item.url !== "#" && (
+        {isClickable && (
           <span
             className="shrink-0 text-xs flex items-center gap-0.5 transition-all duration-200 group-hover:gap-1.5 group-hover:text-blue-400"
             style={{ color: "rgba(255,255,255,0.22)" }}
