@@ -1,59 +1,29 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { AgentRun, AgentNewsItem } from "@/lib/agent/types";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function fmtCost(usd: number) {
-  if (usd < 0.001) return "<$0.001";
-  return `$${usd.toFixed(4)}`;
-}
+import Link from "next/link";
 
 // ─── Auth gate ────────────────────────────────────────────────────────────────
 function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [pw, setPw] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setError("");
     const res = await fetch("/api/admin/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password: pw }),
     });
-    if (res.ok) {
-      onSuccess();
-    } else {
-      setError("密码错误");
-    }
-    setLoading(false);
+    if (res.ok) onSuccess();
+    else setError("密码错误");
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="glass p-8 w-full max-w-sm"
-      >
-        <h1
-          className="text-xl font-bold mb-6 text-center"
-          style={{ color: "rgba(255,255,255,0.85)", fontFamily: "var(--font-space-grotesk)" }}
-        >
+      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="glass p-8 w-full max-w-sm">
+        <h1 className="text-xl font-bold mb-6 text-center" style={{ color: "rgba(255,255,255,0.85)", fontFamily: "var(--font-space-grotesk)" }}>
           管理员登录
         </h1>
         <form onSubmit={submit} className="flex flex-col gap-4">
@@ -64,28 +34,16 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
             placeholder="输入管理密码"
             autoFocus
             className="px-4 py-2.5 rounded-xl text-sm outline-none"
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              color: "rgba(255,255,255,0.85)",
-              fontFamily: "var(--font-jetbrains)",
-            }}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)", fontFamily: "var(--font-jetbrains)" }}
           />
-          {error && (
-            <p className="text-xs text-red-400 text-center">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-400 text-center">{error}</p>}
           <button
             type="submit"
-            disabled={loading || !pw}
-            className="py-2.5 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-40"
-            style={{
-              background: "rgba(59,130,246,0.18)",
-              border: "1px solid rgba(59,130,246,0.35)",
-              color: "#93c5fd",
-              fontFamily: "var(--font-noto-sc)",
-            }}
+            disabled={!pw}
+            className="py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-105 active:scale-95 disabled:opacity-40"
+            style={{ background: "rgba(59,130,246,0.18)", border: "1px solid rgba(59,130,246,0.35)", color: "#93c5fd", fontFamily: "var(--font-noto-sc)" }}
           >
-            {loading ? "验证中…" : "登录"}
+            登录
           </button>
         </form>
       </motion.div>
@@ -93,388 +51,58 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-// ─── Generate panel ───────────────────────────────────────────────────────────
-function GeneratePanel({ onGenerated }: { onGenerated: () => void }) {
-  const [running, setRunning] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
-  const [lastResult, setLastResult] = useState<{ newsCount: number; cost: string } | null>(null);
-  const logRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [log]);
-
-  async function generate() {
-    setRunning(true);
-    setLog(["开始生成..."]);
-    setLastResult(null);
-
-    try {
-      const res = await fetch("/api/admin/news/generate", { method: "POST" });
-      if (!res.ok || !res.body) {
-        setLog((l) => [...l, "请求失败"]);
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() ?? "";
-        for (const chunk of lines) {
-          const dataLine = chunk.trim();
-          if (!dataLine.startsWith("data:")) continue;
-          try {
-            const event = JSON.parse(dataLine.slice(5).trim());
-            if (event.type === "status") {
-              setLog((l) => [...l, event.message]);
-            } else if (event.type === "done") {
-              setLog((l) => [...l, `✓ 完成！共 ${event.newsCount} 条新闻`]);
-              setLastResult({
-                newsCount: event.newsCount,
-                cost: fmtCost(event.usage.estimatedCostUSD),
-              });
-              onGenerated();
-            } else if (event.type === "error") {
-              setLog((l) => [...l, `✗ 错误：${event.message}`]);
-            }
-          } catch {
-            // skip malformed
-          }
-        }
-      }
-    } catch (err) {
-      setLog((l) => [...l, `请求异常：${String(err)}`]);
-    } finally {
-      setRunning(false);
-    }
-  }
-
+// ─── Nav card ─────────────────────────────────────────────────────────────────
+function NavCard({
+  href,
+  title,
+  desc,
+  color,
+  icon,
+}: {
+  href: string;
+  title: string;
+  desc: string;
+  color: string;
+  icon: React.ReactNode;
+}) {
   return (
-    <div className="glass p-6 flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2
-          className="text-base font-semibold"
-          style={{ color: "rgba(255,255,255,0.8)", fontFamily: "var(--font-space-grotesk)" }}
+    <Link href={href} className="block group">
+      <motion.div
+        whileHover={{ scale: 1.02, y: -2 }}
+        whileTap={{ scale: 0.98 }}
+        className="glass p-6 flex items-start gap-4"
+        style={{ border: `1px solid rgba(255,255,255,0.08)` }}
+      >
+        <div
+          className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
+          style={{ background: `${color}18`, border: `1px solid ${color}30` }}
         >
-          生成新闻
-        </h2>
-        <button
-          onClick={generate}
-          disabled={running}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{
-            background: "rgba(16,163,127,0.12)",
-            border: "1px solid rgba(16,163,127,0.3)",
-            color: "#34d399",
-            fontFamily: "var(--font-noto-sc)",
-          }}
-        >
-          <motion.svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            animate={{ rotate: running ? 360 : 0 }}
-            transition={running ? { duration: 0.7, ease: "linear", repeat: Infinity } : { duration: 0.25 }}
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3
+            className="text-base font-semibold mb-1 group-hover:underline underline-offset-2"
+            style={{ color: "rgba(255,255,255,0.88)", fontFamily: "var(--font-space-grotesk)", textDecorationColor: color }}
           >
-            <path d="M23 4v6h-6" />
-            <path d="M1 20v-6h6" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-          </motion.svg>
-          {running ? "生成中…" : "立即生成"}
-        </button>
-      </div>
-
-      {/* Log */}
-      {log.length > 0 && (
-        <div
-          ref={logRef}
-          className="rounded-xl p-4 max-h-48 overflow-y-auto flex flex-col gap-1"
-          style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}
-        >
-          {log.map((line, i) => (
-            <p
-              key={i}
-              className="text-xs"
-              style={{ color: "rgba(255,255,255,0.55)", fontFamily: "var(--font-jetbrains)" }}
-            >
-              {line}
-            </p>
-          ))}
-        </div>
-      )}
-
-      {lastResult && (
-        <div
-          className="flex items-center gap-4 px-4 py-2.5 rounded-xl text-sm"
-          style={{ background: "rgba(16,163,127,0.07)", border: "1px solid rgba(16,163,127,0.2)" }}
-        >
-          <span style={{ color: "#34d399", fontFamily: "var(--font-jetbrains)" }}>
-            {lastResult.newsCount} 条
-          </span>
-          <span style={{ color: "rgba(255,255,255,0.3)" }}>|</span>
-          <span style={{ color: "rgba(255,255,255,0.45)", fontFamily: "var(--font-jetbrains)", fontSize: "0.75rem" }}>
-            消耗 {lastResult.cost}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── News list panel ──────────────────────────────────────────────────────────
-function NewsListPanel({ refreshKey }: { refreshKey: number }) {
-  const [data, setData] = useState<{ items: AgentNewsItem[]; generatedAt: string | null } | null>(null);
-
-  useEffect(() => {
-    fetch("/api/admin/news")
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => {});
-  }, [refreshKey]);
-
-  async function deleteItem(id: string) {
-    await fetch("/api/admin/news", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    setData((prev) =>
-      prev ? { ...prev, items: prev.items.filter((it) => it.id !== id) } : prev
-    );
-  }
-
-  return (
-    <div className="glass p-6 flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2
-          className="text-base font-semibold"
-          style={{ color: "rgba(255,255,255,0.8)", fontFamily: "var(--font-space-grotesk)" }}
-        >
-          当前新闻缓存
-          {data?.items?.length !== undefined && (
-            <span className="ml-2 text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-              ({data.items.length} 条)
-            </span>
-          )}
-        </h2>
-        {data?.generatedAt && (
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.28)", fontFamily: "var(--font-jetbrains)" }}>
-            {fmtDate(data.generatedAt)}
-          </span>
-        )}
-      </div>
-
-      {!data ? (
-        <p className="text-xs text-center py-8" style={{ color: "rgba(255,255,255,0.25)" }}>
-          加载中…
-        </p>
-      ) : data.items.length === 0 ? (
-        <p className="text-xs text-center py-8" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "var(--font-noto-sc)" }}>
-          暂无缓存，请先生成
-        </p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <AnimatePresence>
-            {data.items.map((item) => (
-              <motion.div
-                key={item.id}
-                layout
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 8 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-start gap-3 px-4 py-3 rounded-xl group"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-              >
-                <div className="flex-1 min-w-0">
-                  <a
-                    href={item.url !== "#" ? item.url : undefined}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-medium leading-snug hover:text-blue-400 transition-colors line-clamp-2"
-                    style={{ color: "rgba(255,255,255,0.75)", fontFamily: "var(--font-noto-sc)" }}
-                  >
-                    {item.title}
-                  </a>
-                  <div
-                    className="flex items-center gap-2 mt-1 text-xs"
-                    style={{ color: "rgba(255,255,255,0.3)", fontFamily: "var(--font-jetbrains)" }}
-                  >
-                    <span>{item.source}</span>
-                    <span>·</span>
-                    <span>{fmtDate(item.publishedAt)}</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => deleteItem(item.id)}
-                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:text-red-400"
-                  style={{ color: "rgba(255,255,255,0.3)" }}
-                  title="删除"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                </button>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Settings panel ────────────────────────────────────────────────────────────
-function SettingsPanel() {
-  const [chatEnabled, setChatEnabled] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/admin/settings")
-      .then((r) => r.json())
-      .then((d) => setChatEnabled(d.enableChatWidget !== false))
-      .catch(() => {});
-  }, []);
-
-  async function toggle(value: boolean) {
-    setLoading(true);
-    setSaved(false);
-    try {
-      const res = await fetch("/api/admin/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enableChatWidget: value }),
-      });
-      if (res.ok) {
-        setChatEnabled(value);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="glass p-6 flex flex-col gap-4">
-      <h2
-        className="text-base font-semibold"
-        style={{ color: "rgba(255,255,255,0.8)", fontFamily: "var(--font-space-grotesk)" }}
-      >
-        页面设置
-      </h2>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)", fontFamily: "var(--font-noto-sc)" }}>
-            AI 简历助手
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "var(--font-noto-sc)" }}>
-            控制"关于我"页面右下角聊天组件显示
+            {title}
+          </h3>
+          <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.38)", fontFamily: "var(--font-noto-sc)" }}>
+            {desc}
           </p>
         </div>
-        <button
-          onClick={() => toggle(!chatEnabled)}
-          disabled={loading}
-          className="relative w-12 h-6 rounded-full transition-all duration-200 disabled:opacity-50"
-          style={{
-            background: chatEnabled ? "rgba(52,211,153,0.3)" : "rgba(255,255,255,0.08)",
-            border: `1px solid ${chatEnabled ? "rgba(52,211,153,0.4)" : "rgba(255,255,255,0.1)"}`,
-          }}
+        <svg
+          className="shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity"
+          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"
         >
-          <span
-            className="absolute top-0.5 w-4.5 h-4.5 rounded-full transition-all duration-200"
-            style={{
-              background: chatEnabled ? "#34d399" : "rgba(255,255,255,0.3)",
-              left: chatEnabled ? "22px" : "2px",
-            }}
-          />
-        </button>
-      </div>
-      {saved && (
-        <p className="text-xs text-center" style={{ color: "#34d399", fontFamily: "var(--font-jetbrains)" }}>
-          ✓ 已保存
-        </p>
-      )}
-    </div>
+          <path d="M5 12h14M12 5l7 7-7 7" />
+        </svg>
+      </motion.div>
+    </Link>
   );
 }
 
-// ─── History panel ────────────────────────────────────────────────────────────
-function HistoryPanel({ refreshKey }: { refreshKey: number }) {
-  const [history, setHistory] = useState<AgentRun[] | null>(null);
-
-  useEffect(() => {
-    fetch("/api/admin/history")
-      .then((r) => r.json())
-      .then(setHistory)
-      .catch(() => {});
-  }, [refreshKey]);
-
-  return (
-    <div className="glass p-6 flex flex-col gap-4">
-      <h2
-        className="text-base font-semibold"
-        style={{ color: "rgba(255,255,255,0.8)", fontFamily: "var(--font-space-grotesk)" }}
-      >
-        运行历史
-      </h2>
-      {!history ? (
-        <p className="text-xs text-center py-4" style={{ color: "rgba(255,255,255,0.25)" }}>加载中…</p>
-      ) : history.length === 0 ? (
-        <p className="text-xs text-center py-4" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "var(--font-noto-sc)" }}>暂无运行记录</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {history.slice(0, 10).map((run) => (
-            <div
-              key={run.runId}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs"
-              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
-            >
-              <span
-                className="shrink-0 w-1.5 h-1.5 rounded-full"
-                style={{ background: run.status === "success" ? "#34d399" : "#f87171" }}
-              />
-              <span style={{ color: "rgba(255,255,255,0.45)", fontFamily: "var(--font-jetbrains)" }}>
-                {fmtDate(run.startedAt)}
-              </span>
-              <span style={{ color: "rgba(255,255,255,0.25)" }}>|</span>
-              {run.status === "success" ? (
-                <span style={{ color: "rgba(255,255,255,0.5)", fontFamily: "var(--font-noto-sc)" }}>
-                  {run.newsCount} 条
-                </span>
-              ) : (
-                <span className="truncate max-w-xs" style={{ color: "#f87171", fontFamily: "var(--font-noto-sc)" }}>
-                  {run.error ?? "未知错误"}
-                </span>
-              )}
-              <span className="ml-auto shrink-0" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "var(--font-jetbrains)" }}>
-                {fmtCost(run.usage.estimatedCostUSD)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Admin dashboard ──────────────────────────────────────────────────────────
+// ─── Dashboard ────────────────────────────────────────────────────────────────
 function Dashboard() {
-  const [refreshKey, setRefreshKey] = useState(0);
-
   async function logout() {
     await fetch("/api/admin/auth", { method: "DELETE" });
     window.location.reload();
@@ -483,7 +111,7 @@ function Dashboard() {
   return (
     <div className="min-h-screen px-4 sm:px-6 py-12 max-w-3xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-10">
         <div>
           <h1
             className="text-2xl font-bold gradient-text-blue"
@@ -492,38 +120,69 @@ function Dashboard() {
             管理控制台
           </h1>
           <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "var(--font-jetbrains)" }}>
-            AI 热点速递 · 新闻生成管理
+            个人网站 · 管理后台
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <a
-            href="/"
-            className="text-xs px-3 py-1.5 rounded-lg transition-colors hover:text-white"
-            style={{ color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-noto-sc)" }}
-          >
-            ← 返回首页
-          </a>
-          <button
-            onClick={logout}
-            className="text-xs px-3 py-1.5 rounded-lg transition-all hover:scale-105"
-            style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "rgba(255,255,255,0.4)",
-              fontFamily: "var(--font-noto-sc)",
-            }}
-          >
-            退出登录
-          </button>
-        </div>
+        <button
+          onClick={logout}
+          className="text-xs px-3 py-1.5 rounded-lg transition-all hover:scale-105"
+          style={{
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            color: "rgba(255,255,255,0.4)",
+            fontFamily: "var(--font-noto-sc)",
+          }}
+        >
+          退出登录
+        </button>
       </div>
 
-      {/* Panels */}
-      <div className="flex flex-col gap-5">
-        <GeneratePanel onGenerated={() => setRefreshKey((k) => k + 1)} />
-        <SettingsPanel />
-        <NewsListPanel refreshKey={refreshKey} />
-        <HistoryPanel refreshKey={refreshKey} />
+      {/* Nav grid */}
+      <div className="flex flex-col gap-3">
+        <NavCard
+          href="/admin/news"
+          title="AI 新闻管理"
+          desc="生成、查看和删除 AI 热点新闻缓存"
+          color="#3b82f6"
+          icon={
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
+              <path d="M4 4h16v2H4zM4 10h16v2H4zM4 16h10v2H4z" />
+            </svg>
+          }
+        />
+        <NavCard
+          href="/admin/timeline"
+          title="时间线管理"
+          desc="编辑 AI 进化时间线节点，支持增删改查和距离设置"
+          color="#06b6d4"
+          icon={
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="19" cy="6" r="2" />
+              <circle cx="19" cy="18" r="2" />
+              <path d="M7 12h4M13 6l4 6-4 6" />
+            </svg>
+          }
+        />
+        <NavCard
+          href="/admin/settings"
+          title="页面设置"
+          desc="控制 AI 简历助手聊天组件的显示与隐藏"
+          color="#8b5cf6"
+          icon={
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          }
+        />
+      </div>
+
+      {/* Footer */}
+      <div className="mt-10 text-center">
+        <a href="/" className="text-xs hover:underline underline-offset-2" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "var(--font-noto-sc)" }}>
+          ← 返回首页
+        </a>
       </div>
     </div>
   );
@@ -533,11 +192,8 @@ function Dashboard() {
 export default function AdminPage() {
   const [authed, setAuthed] = useState<boolean | null>(null);
 
-  // Check if already logged in by pinging the admin news endpoint
   useEffect(() => {
-    fetch("/api/admin/news")
-      .then((r) => setAuthed(r.ok))
-      .catch(() => setAuthed(false));
+    fetch("/api/admin/news").then((r) => setAuthed(r.ok)).catch(() => setAuthed(false));
   }, []);
 
   if (authed === null) {
